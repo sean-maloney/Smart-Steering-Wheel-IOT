@@ -12,18 +12,11 @@
 
 DFRobot_DHT11 DHT;
 
+const int trigPin_1 = 15;
+const int echoPin_1 = 13;
 
-const int trigPin1 = 15;
-const int echoPin1 = 13;
-
-const int trigPin2 = 5;
-const int echoPin2 = 4;
-
-long duration1;
-int distance1;
- 
-long duration2;
-int distance2;
+const int trigPin_2 = 5;
+const int echoPin_2 = 4;
 
 
 
@@ -34,7 +27,7 @@ String s = "www.google.com/maps/dir/";
 PulseOximeter pox;
 float tsLastReport = 0;
 float BPM = -1.0F;
-int bpm = 0, temp = 0, yaxis = 0, humi=0, distance_1=0, distance_2=0;
+int bpm = 0, temp = 0, yaxis = 0;
 
 Adafruit_MMA8451 mma = Adafruit_MMA8451();
 
@@ -64,20 +57,23 @@ HardwareSerial SerialGPS(2);
 //temp function to simulate temp sensor
 int getTemp() {
   DHT.read(DHT11_PIN);
-  Serial.print("temp: ");
+  Serial.print("temp: ")
   Serial.print(DHT.temperature);
-  Serial.print("\t");
-  delay(1000);
-  return temp;
-}
-
-float getHumi() {
-  DHT.read(DHT11_PIN);
-  Serial.print("humidity: ");
+  Serial.print(" humi:");
   Serial.println(DHT.humidity);
   Serial.println("\n");
   delay(1000);
-  return humi;
+  temp= tempC;
+  return temp;
+  /*int adcVal = analogRead(PIN_LM35);
+  float milliVolt = adcVal * (ADC_VREF_mV / ADC_RESOLUTION);
+  float tempC = milliVolt / 10;
+  Serial.print("Temperature: ");
+  Serial.print(tempC);  // print the temperature in °C
+  Serial.print("°C\n");
+  temp = tempC;
+  return temp;
+  //Lm35 is working in it's Non linear range within the ESP32*/
 }
 void setup() {
   Serial.begin(115200);
@@ -155,41 +151,26 @@ void setup() {
   SerialGPS.write(0x1A);
   delay(1000);
 
-   server.on("/", handleRoot);
-  server.on("/inline", []() {
-    server.send(200, "text/plain", "this works as well");
-  });
-  server.onNotFound(handleNotFound);
 
-  server.begin();
-  Serial.println("HTTP server started");
-}
+  /* Serial.println("Initializing pulse oximeter..");
 
-
-void handleRoot() {
-  String message = homePagePart1 + getTemp() + homePagePart2 + getHumi() + homePagePart3 + getAcc() + homePagePart4 + getBPM() + homePagePart5;  // + getO2() + homePagePart6 ;
-  server.send(200, "text/html", message);
-}
-
-void handleNotFound() {
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET) ? "GET" : "POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i = 0; i < server.args(); i++) {
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+  if (!pox.begin()) {
+    Serial.println("FAILED");
+    for (;;)
+      ;
+  } else {
+    Serial.println("SUCCESS");
   }
-  server.send(404, "text/plain", message);
+
+  pox.setOnBeatDetectedCallback(onBeatDetected);*/
 }
 
+/*void onBeatDetected() {
+  Serial.println("Beat!");
+}*/
 
 void loop() {
   // pox.update();
-  server.handleClient();
   if (WiFi.status() != WL_CONNECTED) {
     Serial.print("Attempting to connect to SSID: ");
     Serial.println(SECRET_SSID);
@@ -203,16 +184,11 @@ void loop() {
   yaxis = getAcc();
   temp = getTemp();
   bpm = getBPM();
-  humi = getHumi();
-  distance_1 = mirror1();
-  distance_2 = mirror2();
 
   ThingSpeak.setField(1, yaxis);
   ThingSpeak.setField(2, temp);
-  ThingSpeak.setField(3, bpm);
-  ThingSpeak.setField(4, humi);
-  ThingSpeak.setField(5, distance_1);
-  ThingSpeak.setField(6, distance_2);
+  ThingSpeak.setField(3, gbpm);
+  //ThingSpeak.setField(4, humi);
 
   ThingSpeak.setStatus(myStatus);
 
@@ -255,55 +231,15 @@ static void smartDelay(unsigned long ms) {
   } while (millis() - start < ms);
 }
 
-float mirror1(){
-  ultraSonic(trigPin1, echoPin1, duration1, distance1);
-    // Print the distance to the Serial Monitor
-    Serial.print("\nDistance 1: ");
-    Serial.print(distance1);
-    Serial.println(" cm");
-    distance_1=distance1;
-    return distance_1;
-}
-float checkMirror1(){
-  if (distance_1>30){
-    Serial.print("Right OK, Clear to merge");
-  }
-  else{
-    Serial.print("Right UnSafe, DO NOT MERGE");
-  }
-
-}
-
-float mirror2(){
-  ultraSonic(trigPin2, echoPin2, duration2, distance2);
-    // Print the distance to the Serial Monitor
-    Serial.print("\nDistance 2: ");
-    Serial.print(distance2);
-    Serial.println(" cm");
-    distance_2=distance2;
-    return distance_2;
-}
-
-String checkMirror2(){
-  if (distance_2>30){
-    Serial.print("Right OK, Clear to merge");
-  }
-  else{
-    Serial.print("Right UnSafe, DO NOT MERGE");
-  }
-
-}
-
 int getBPM() {
-  /*if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+  if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
     Serial.print("Heart rate:");
     Serial.print(pox.getHeartRate());
     tsLastReport = millis();
-  }*/
-  return int(80); //returning false value but avearge human heart rate
-  /*HEart rate refuses to work due to the thing speak delay, will constanly now return a 
-  average heartrate of 80 BPM to simulate a live human*/
+  }
+  return int(80);
 }
+
 int getAcc() {
   sensors_event_t event;
   mma.getEvent(&event);
@@ -311,8 +247,6 @@ int getAcc() {
   yaxis = event.acceleration.y;
   return int(yaxis);
 }
-
-
 
 void send_gps_data() {
   if (gps.location.lat() == 0 || gps.location.lng() == 0) {
